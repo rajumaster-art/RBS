@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ramailo Balsansar Montessori Management System</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue.js 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- SheetJS for Excel & CSV handling -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: white; color: black; }
+      .page-break { page-break-after: always; }
+    }
+    
+    /* Stylish Windows Styling */
+    .win-glass {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+    .win-shadow {
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+    .captcha-bg {
+      background-image: radial-gradient(#6366f1 1px, transparent 1px), radial-gradient(#a855f7 1px, #f1f5f9 1px);
+      background-size: 20px 20px;
+      background-position: 0 0, 10px 10px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 font-sans min-h-screen">
+<div id="app">
+
+  <!-- AUTHENTICATION WINDOW (LOGIN & PASSWORD CHANGE) -->
+  <div v-if="!isLoggedIn" class="fixed inset-0 flex items-center justify-center p-4 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 z-50">
+    <!-- Acrylic Glass Windows Box -->
+    <div class="w-full max-w-md win-glass rounded-2xl win-shadow overflow-hidden flex flex-col transition-all duration-300">
+      
+      <!-- Windows Title Bar -->
+      <div class="bg-slate-900/90 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700/50 select-none">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+          <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <span class="text-xs font-semibold tracking-wider text-slate-300 ml-2">
+            {{ showChangePassword ? 'System Security - Change Password' : 'Ramailo System Authentication' }}
+          </span>
+        </div>
+        <span class="text-xs font-mono text-indigo-400 font-bold">RBS-v2082</span>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div v-if="!showChangePassword" class="p-8 space-y-5">
+        <div class="text-center space-y-1">
+          <h2 class="text-2xl font-black text-indigo-950 tracking-tight">Welcome Back</h2>
+          <p class="text-xs text-slate-500">Sign in to access the management portal</p>
+        </div>
+
+        <div v-if="authError" class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium text-center animate-bounce">
+          {{ authError }}
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Username</label>
+            <input v-model="loginUsername" type="text" placeholder="Enter username" class="w-full px-4 py-2.5 bg-white/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition text-sm">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+            <input v-model="loginPassword" type="password" placeholder="Enter password" class="w-full px-4 py-2.5 bg-white/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition text-sm">
+          </div>
+
+          <!-- Dynamic CAPTCHA Card -->
+          <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/80 space-y-2">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Security Verification</label>
+            <div class="flex items-center gap-3">
+              <div class="captcha-bg px-4 py-2 rounded-lg font-mono text-lg font-black text-indigo-900 border border-indigo-200 shadow-inner select-none flex-1 text-center tracking-widest">
+                {{ captcha.num1 }} {{ captcha.operator }} {{ captcha.num2 }} = ?
+              </div>
+              <button @click="generateCaptcha" title="Refresh Security Code" class="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-200 transition">
+                🔄
+              </button>
+            </div>
+            <input v-model.number="captchaInput" type="number" placeholder="Solve CAPTCHA answer" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm">
+          </div>
+        </div>
+
+        <button @click="handleLogin" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition transform active:scale-95">
+          Sign In
+        </button>
+
+        <div class="text-center pt-2">
+          <button @click="toggleChangePasswordView" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+            Need to change password?
+          </button>
+        </div>
+      </div>
+
+      <!-- CHANGE PASSWORD FORM -->
+      <div v-else class="p-8 space-y-5">
+        <div class="text-center space-y-1">
+          <h2 class="text-2xl font-black text-indigo-950 tracking-tight">Update Password</h2>
+          <p class="text-xs text-slate-500">Verify your current credentials to set a new password</p>
+        </div>
+
+        <div v-if="authError" class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium text-center">
+          {{ authError }}
+        </div>
+        <div v-if="authSuccess" class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg font-medium text-center">
+          {{ authSuccess }}
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Old Password</label>
+            <input v-model="changePassForm.oldPassword" type="password" placeholder="Current password" class="w-full px-4 py-2 bg-white/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">New Password</label>
+            <input v-model="changePassForm.newPassword" type="password" placeholder="New password" class="w-full px-4 py-2 bg-white/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Retype New Password</label>
+            <input v-model="changePassForm.retypePassword" type="password" placeholder="Confirm new password" class="w-full px-4 py-2 bg-white/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm">
+          </div>
+
+          <!-- Dynamic CAPTCHA -->
+          <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/80 space-y-2">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Security Check</label>
+            <div class="flex items-center gap-3">
+              <div class="captcha-bg px-4 py-2 rounded-lg font-mono text-lg font-black text-indigo-900 border border-indigo-200 shadow-inner select-none flex-1 text-center tracking-widest">
+                {{ captcha.num1 }} {{ captcha.operator }} {{ captcha.num2 }} = ?
+              </div>
+              <button @click="generateCaptcha" title="Refresh Security Code" class="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-200 transition">
+                🔄
+              </button>
+            </div>
+            <input v-model.number="captchaInput" type="number" placeholder="Solve CAPTCHA answer" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm">
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button @click="toggleChangePasswordView" class="w-1/2 py-2.5 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-100 transition">
+            Back
+          </button>
+          <button @click="handleChangePassword" class="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition">
+            Save New Password
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAIN SYSTEM INTERFACE (ACCESSIBLE AFTER LOGIN) -->
+  <div v-else class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    <div class="flex h-screen overflow-hidden">
+      
+      <!-- Sidebar Navigation -->
+      <aside class="w-64 bg-indigo-900 text-white flex flex-col no-print shrink-0">
+        <div class="p-5 border-b border-indigo-800 flex items-center gap-3">
+          <img v-if="schoolSettings.logo" :src="schoolSettings.logo" alt="Logo" class="w-10 h-10 object-contain rounded bg-white p-1">
+          <div>
+            <h1 class="text-base font-bold leading-tight truncate w-36">{{ schoolSettings.name }}</h1>
+            <p class="text-xs text-indigo-300">Management System</p>
+          </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+          <button @click="activeTab = 'dashboard'" :class="navClass('dashboard')" class="w-full text-left px-4 py-2 rounded transition">📊 Dashboard</button>
+          <button @click="activeTab = 'classes'" :class="navClass('classes')" class="w-full text-left px-4 py-2 rounded transition">🏫 Classes</button>
+          <button @click="activeTab = 'teachers'" :class="navClass('teachers')" class="w-full text-left px-4 py-2 rounded transition">👩‍🏫 Teachers</button>
+          <button @click="activeTab = 'students'" :class="navClass('students')" class="w-full text-left px-4 py-2 rounded transition">👶 Students</button>
+          <button @click="activeTab = 'examSettings'" :class="navClass('examSettings')" class="w-full text-left px-4 py-2 rounded transition">⚙️ Exam & School Settings</button>
+          <button @click="activeTab = 'marks'" :class="navClass('marks')" class="w-full text-left px-4 py-2 rounded transition">📝 Marks Ledger</button>
+          <button @click="activeTab = 'reports'" :class="navClass('reports')" class="w-full text-left px-4 py-2 rounded transition">📜 Progress Reports</button>
+          <button @click="activeTab = 'invoices'" :class="navClass('invoices')" class="w-full text-left px-4 py-2 rounded transition">🧾 Invoices & Billing</button>
+          <button @click="activeTab = 'financialLedger'" :class="navClass('financialLedger')" class="w-full text-left px-4 py-2 rounded transition">💰 Financial Ledger</button>
+          <button @click="activeTab = 'about'" :class="navClass('about')" class="w-full text-left px-4 py-2 rounded transition">ℹ️ About School</button>
+        </nav>
+        
+        <!-- User Session Footer -->
+        <div class="p-4 border-t border-indigo-800 bg-indigo-950/60 flex justify-between items-center">
+          <div class="truncate">
+            <p class="text-xs font-bold text-white truncate">{{ activeUser }}</p>
+            <p class="text-[10px] text-indigo-300">Administrator</p>
+          </div>
+          <button @click="handleLogout" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-bold transition">
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="flex-1 overflow-y-auto p-8">
+        
+        <!-- DASHBOARD -->
+        <section v-if="activeTab === 'dashboard'" class="no-print space-y-6">
+          <h2 class="text-2xl font-bold">Real-time Dashboard</h2>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <p class="text-sm text-slate-500 font-medium">Total Classes</p>
+              <p class="text-3xl font-bold text-indigo-600 mt-2">{{ classes.length }}</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <p class="text-sm text-slate-500 font-medium">Total Students</p>
+              <p class="text-3xl font-bold text-amber-600 mt-2">{{ students.length }}</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <p class="text-sm text-slate-500 font-medium">Total Billed</p>
+              <p class="text-3xl font-bold text-purple-600 mt-2">Rs. {{ totalBilledAmount }}</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <p class="text-sm text-slate-500 font-medium">Total Payments Received</p>
+              <p class="text-3xl font-bold text-emerald-600 mt-2">Rs. {{ totalCollectedAmount }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- CLASSES MANAGEMENT -->
+        <section v-if="activeTab === 'classes'" class="no-print space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Class Management</h2>
+            <button @click="openClassModal()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700">+ Add Class</button>
+          </div>
+          <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-4">Class Name</th>
+                  <th class="p-4">Section</th>
+                  <th class="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="c in classes" :key="c.id" class="border-b">
+                  <td class="p-4">{{ c.name }}</td>
+                  <td class="p-4">{{ c.section }}</td>
+                  <td class="p-4 text-right space-x-2">
+                    <button @click="openClassModal(c)" class="text-indigo-600 hover:underline">Edit</button>
+                    <button @click="removeClass(c.id)" class="text-rose-600 hover:underline">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- TEACHERS MANAGEMENT -->
+        <section v-if="activeTab === 'teachers'" class="no-print space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Teacher Management</h2>
+            <button @click="openTeacherModal()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700">+ Add Teacher</button>
+          </div>
+          <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-4">Name</th>
+                  <th class="p-4">Subject/Role</th>
+                  <th class="p-4">Phone</th>
+                  <th class="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="t in teachers" :key="t.id" class="border-b">
+                  <td class="p-4">{{ t.name }}</td>
+                  <td class="p-4">{{ t.subject }}</td>
+                  <td class="p-4">{{ t.phone }}</td>
+                  <td class="p-4 text-right space-x-2">
+                    <button @click="openTeacherModal(t)" class="text-indigo-600 hover:underline">Edit</button>
+                    <button @click="removeTeacher(t.id)" class="text-rose-600 hover:underline">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- STUDENTS MANAGEMENT -->
+        <section v-if="activeTab === 'students'" class="no-print space-y-6">
+          <div class="flex justify-between items-center flex-wrap gap-4">
+            <h2 class="text-2xl font-bold">Student Management</h2>
+            <div class="space-x-2">
+              <button @click="downloadCsvTemplate" class="bg-slate-700 text-white px-3 py-2 rounded text-sm hover:bg-slate-800">📥 Download CSV Format</button>
+              <button @click="showImportModal = true" class="bg-emerald-600 text-white px-3 py-2 rounded text-sm hover:bg-emerald-700">📤 Import Students CSV</button>
+              <button @click="openStudentModal()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700">+ Add Student</button>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl shadow border border-slate-200 flex items-center gap-4">
+            <label class="text-sm font-bold text-slate-700">Filter by Class:</label>
+            <select v-model="selectedClassForStudentView" class="border p-2 rounded w-64">
+              <option value="">All Classes</option>
+              <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name }} - {{ c.section }}</option>
+            </select>
+          </div>
+
+          <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-4">Roll</th>
+                  <th class="p-4">Name</th>
+                  <th class="p-4">Class</th>
+                  <th class="p-4">Guardian Phone</th>
+                  <th class="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="filteredStudentsByClass.length === 0">
+                  <td colspan="5" class="p-8 text-center text-slate-400 font-medium">No students found for the selected class.</td>
+                </tr>
+                <tr v-for="s in filteredStudentsByClass" :key="s.id" class="border-b">
+                  <td class="p-4">{{ s.roll }}</td>
+                  <td class="p-4 font-semibold text-indigo-950">{{ s.name }}</td>
+                  <td class="p-4">{{ getClassName(s.classId) }}</td>
+                  <td class="p-4">{{ s.phone }}</td>
+                  <td class="p-4 text-right space-x-2">
+                    <button @click="openStudentModal(s)" class="text-indigo-600 hover:underline">Edit</button>
+                    <button @click="removeStudent(s.id)" class="text-rose-600 hover:underline">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- EXAM & SCHOOL SETTINGS MENU -->
+        <section v-if="activeTab === 'examSettings'" class="no-print space-y-8">
+          <div class="bg-white p-6 rounded-xl shadow border border-slate-200 space-y-4">
+            <h2 class="text-xl font-bold text-indigo-900">School Profile & Branding Settings</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">School Name</label>
+                <input v-model="schoolSettings.name" type="text" class="w-full border p-2 rounded">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">School Address</label>
+                <input v-model="schoolSettings.address" type="text" class="w-full border p-2 rounded">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Academic Year (BS) [Editable]</label>
+                <input v-model="schoolSettings.academicYearBs" type="text" placeholder="e.g. 2082/2083" class="w-full border p-2 rounded font-bold text-indigo-900">
+              </div>
+              <div class="md:col-span-3">
+                <label class="block text-xs font-semibold text-slate-500 mb-1">School Logo (Upload Image or Paste URL)</label>
+                <div class="flex items-center gap-4">
+                  <input type="file" @change="handleLogoUpload" accept="image/*" class="border p-1.5 rounded text-sm flex-1">
+                  <input v-model="schoolSettings.logo" type="text" placeholder="Or paste image URL here" class="border p-2 rounded flex-1 text-sm">
+                  <img v-if="schoolSettings.logo" :src="schoolSettings.logo" alt="Logo Preview" class="w-12 h-12 object-contain border rounded bg-slate-50">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow border border-slate-200 space-y-4">
+            <h2 class="text-xl font-bold text-indigo-900">Term-wise Result Publishing Manager</h2>
+            <p class="text-xs text-slate-500">Configure publication status and release dates (both Nepali and English format) for each term.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+              <div v-for="term in availableTerms" :key="term" class="border p-4 rounded-lg bg-slate-50 space-y-3">
+                <div class="flex justify-between items-center">
+                  <h3 class="font-bold text-slate-800">{{ term }}</h3>
+                  <span :class="termPublishSettings[term]?.isPublished ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'" class="text-xs px-2 py-0.5 rounded font-bold">
+                    {{ termPublishSettings[term]?.isPublished ? 'Published' : 'Draft' }}
+                  </span>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500">Nepali Publish Date</label>
+                  <input v-model="termPublishSettings[term].nepaliDate" type="text" placeholder="e.g. 2082/11/15" class="w-full border p-1.5 rounded text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500">English Publish Date</label>
+                  <input v-model="termPublishSettings[term].englishDate" type="date" class="w-full border p-1.5 rounded text-sm">
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="checkbox" :id="'pub-' + term" v-model="termPublishSettings[term].isPublished">
+                  <label :for="'pub-' + term" class="text-xs font-bold text-indigo-700 cursor-pointer">Publish Result for {{ term }}</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center">
+              <h2 class="text-xl font-bold text-indigo-900">Subjects Configuration</h2>
+              <button @click="openSubjectModal()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm font-medium">+ Add Subject</button>
+            </div>
+            <div class="overflow-hidden border border-slate-200 rounded-lg">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-100 border-b text-xs">
+                  <tr>
+                    <th class="p-3">Subject Name</th>
+                    <th class="p-3">Assigned Classes</th>
+                    <th class="p-3">Theory (FM / PM)</th>
+                    <th class="p-3">Practical</th>
+                    <th class="p-3">Practical (FM / PM)</th>
+                    <th class="p-3">Total FM</th>
+                    <th class="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="text-sm">
+                  <tr v-for="sub in subjects" :key="sub.id" class="border-b">
+                    <td class="p-3 font-semibold">{{ sub.name }}</td>
+                    <td class="p-3 text-xs font-medium">
+                      <span v-if="!sub.classIds || sub.classIds.length === 0" class="bg-indigo-100 text-indigo-800 px-2 py-1 rounded">All Classes</span>
+                      <span v-else class="space-x-1">
+                        <span v-for="cid in sub.classIds" :key="cid" class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs">
+                          {{ getClassName(cid) }}
+                        </span>
+                      </span>
+                    </td>
+                    <td class="p-3">{{ sub.theoryFm }} / {{ sub.theoryPm }}</td>
+                    <td class="p-3">
+                      <span :class="sub.hasPractical ? 'text-emerald-600 font-bold' : 'text-slate-400'">{{ sub.hasPractical ? 'Yes' : 'No' }}</span>
+                    </td>
+                    <td class="p-3">{{ sub.hasPractical ? `${sub.practicalFm} / ${sub.practicalPm}` : '-' }}</td>
+                    <td class="p-3 font-bold">{{ sub.theoryFm + (sub.hasPractical ? sub.practicalFm : 0) }}</td>
+                    <td class="p-3 text-right space-x-2">
+                      <button @click="openSubjectModal(sub)" class="text-indigo-600 hover:underline">Edit</button>
+                      <button @click="removeSubject(sub.id)" class="text-rose-600 hover:underline">Delete</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- MARKS LEDGER -->
+        <section v-if="activeTab === 'marks'" class="no-print space-y-6">
+          <div class="flex justify-between items-center flex-wrap gap-3">
+            <h2 class="text-2xl font-bold">Marks Entry Ledger</h2>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button @click="downloadMarksCsvTemplate('pg')" class="bg-slate-700 text-white px-3 py-2 rounded text-xs hover:bg-slate-800">📥 PG/Nursery Template CSV</button>
+              <button @click="downloadMarksCsvTemplate('lkg')" class="bg-slate-700 text-white px-3 py-2 rounded text-xs hover:bg-slate-800">📥 LKG/UKG Template CSV</button>
+              <button @click="showMarksImportModal = true" class="bg-emerald-600 text-white px-3 py-2 rounded text-xs hover:bg-emerald-700">📤 Import Marks CSV</button>
+              <button v-if="marksViewMode === 'single'" @click="exportMarksToExcel" class="bg-indigo-600 text-white px-3 py-2 rounded text-xs hover:bg-indigo-700">Export Single Subject Excel</button>
+              <button v-if="marksViewMode === 'all'" @click="exportClassLedgerExcel" class="bg-indigo-600 text-white px-3 py-2 rounded text-xs hover:bg-indigo-700">Export Class Ledger Excel</button>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl shadow border border-slate-200 flex flex-wrap gap-4 items-center">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Select Term</label>
+              <select v-model="selectedTerm" class="border p-2 rounded w-48 font-bold text-indigo-900 bg-indigo-50/50">
+                <option v-for="term in availableTerms" :value="term">{{ term }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Select Class</label>
+              <select v-model="selectedClassForMarks" class="border p-2 rounded w-64">
+                <option value="">Select Class</option>
+                <option v-for="c in classes" :value="c.id">{{ c.name }} - {{ c.section }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Ledger Mode</label>
+              <select v-model="marksViewMode" class="border p-2 rounded w-48">
+                <option value="single">Single Subject Mode</option>
+                <option value="all">Class-wise All Subject Ledger</option>
+              </select>
+            </div>
+
+            <div v-if="marksViewMode === 'single'">
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Select Subject View</label>
+              <select v-model="selectedSubjectId" class="border p-2 rounded w-64">
+                <option value="">Select Subject View</option>
+                <option v-for="sub in classSubjectsForMarks" :value="sub.id">{{ sub.name }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="marksViewMode === 'single' && selectedClassForMarks && activeSubject" class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-4">Roll</th>
+                  <th class="p-4">Student Name</th>
+                  <th class="p-4">Theory (FM: {{ activeSubject.theoryFm }}, PM: {{ activeSubject.theoryPm }})</th>
+                  <th class="p-4">Practical (FM: {{ activeSubject.hasPractical ? activeSubject.practicalFm : '-' }}, PM: {{ activeSubject.hasPractical ? activeSubject.practicalPm : '-' }})</th>
+                  <th class="p-4">Total Score</th>
+                  <th class="p-4">Grade</th>
+                  <th class="p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in filteredStudentsForMarks" :key="s.id" class="border-b">
+                  <td class="p-4">{{ s.roll }}</td>
+                  <td class="p-4 font-medium">{{ s.name }}</td>
+                  <td class="p-4">
+                    <input type="number" min="0" :max="activeSubject.theoryFm" v-model.number="getMarkEntry(s.id, selectedTerm, activeSubject.id).theory" class="border p-1 rounded w-20">
+                  </td>
+                  <td class="p-4">
+                    <input type="number" min="0" :max="activeSubject.practicalFm" :disabled="!activeSubject.hasPractical" v-model.number="getMarkEntry(s.id, selectedTerm, activeSubject.id).practical" class="border p-1 rounded w-20 disabled:bg-slate-100">
+                  </td>
+                  <td class="p-4 font-bold">{{ calculateTotal(getMarkEntry(s.id, selectedTerm, activeSubject.id), activeSubject) }}</td>
+                  <td class="p-4 font-bold text-indigo-700">{{ getGrade(getMarkEntry(s.id, selectedTerm, activeSubject.id), activeSubject).grade }}</td>
+                  <td class="p-4">
+                    <span :class="getStatus(getMarkEntry(s.id, selectedTerm, activeSubject.id), activeSubject) === 'PASS' ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'">
+                      {{ getStatus(getMarkEntry(s.id, selectedTerm, activeSubject.id), activeSubject) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-if="marksViewMode === 'all' && selectedClassForMarks" class="bg-white rounded-xl shadow border border-slate-200 overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-3 border-r" rowspan="2">Roll</th>
+                  <th class="p-3 border-r min-w-[150px]" rowspan="2">Student Name</th>
+                  <th v-for="sub in classSubjectsForMarks" :key="sub.id" class="p-2 text-center border-r border-b" :colspan="sub.hasPractical ? 3 : 2">
+                    {{ sub.name }}
+                  </th>
+                  <th class="p-3 border-r text-center" rowspan="2">Grand Total</th>
+                  <th class="p-3 text-center" rowspan="2">Overall GPA</th>
+                </tr>
+                <tr>
+                  <template v-for="sub in classSubjectsForMarks" :key="'sub-hdr-' + sub.id">
+                    <th class="p-1 text-center border-r bg-slate-50">TH</th>
+                    <th v-if="sub.hasPractical" class="p-1 text-center border-r bg-slate-50">PR</th>
+                    <th class="p-1 text-center border-r bg-slate-100 font-bold">Tot</th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in filteredStudentsForMarks" :key="s.id" class="border-b hover:bg-slate-50">
+                  <td class="p-3 border-r font-medium">{{ s.roll }}</td>
+                  <td class="p-3 border-r font-semibold text-slate-800">{{ s.name }}</td>
+                  <template v-for="sub in classSubjectsForMarks" :key="'mark-' + s.id + '-' + sub.id">
+                    <td class="p-1 border-r text-center">
+                      <input type="number" min="0" :max="sub.theoryFm" v-model.number="getMarkEntry(s.id, selectedTerm, sub.id).theory" class="border rounded p-0.5 w-12 text-center">
+                    </td>
+                    <td v-if="sub.hasPractical" class="p-1 border-r text-center">
+                      <input type="number" min="0" :max="sub.practicalFm" v-model.number="getMarkEntry(s.id, selectedTerm, sub.id).practical" class="border rounded p-0.5 w-12 text-center">
+                    </td>
+                    <td class="p-1 border-r text-center font-bold bg-slate-50">
+                      {{ calculateTotal(getMarkEntry(s.id, selectedTerm, sub.id), sub) }}
+                    </td>
+                  </template>
+                  <td class="p-3 border-r text-center font-bold text-indigo-900 bg-indigo-50/50">
+                    {{ calculateStudentGrandTotal(s.id, selectedTerm) }}
+                  </td>
+                  <td class="p-3 text-center font-bold" :class="calculateStudentGPA(s.id, selectedTerm) !== 'NG' ? 'text-emerald-700' : 'text-rose-600'">
+                    {{ calculateStudentGPA(s.id, selectedTerm) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- PROGRESS REPORTS -->
+        <section v-if="activeTab === 'reports'" class="space-y-6">
+          <div class="no-print flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Progress Reports (Term-wise & Nepal Grading)</h2>
+            <div class="space-x-2">
+              <button @click="exportReportsExcel" class="bg-emerald-600 text-white px-4 py-2 rounded shadow hover:bg-emerald-700 text-sm font-medium">Export Reports Excel</button>
+              <button @click="printReports" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm font-medium">Print Selected / All</button>
+            </div>
+          </div>
+
+          <div class="no-print bg-white p-4 rounded-xl shadow border border-slate-200 flex flex-wrap gap-4 items-center">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Select Term Report</label>
+              <select v-model="selectedReportTerm" class="border p-2 rounded w-48 font-bold text-indigo-900">
+                <option v-for="term in availableTerms" :value="term">{{ term }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Select Class</label>
+              <select v-model="selectedClassForReport" class="border p-2 rounded w-64">
+                <option value="">Select Class</option>
+                <option v-for="c in classes" :value="c.id">{{ c.name }} - {{ c.section }}</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2 self-end pb-2">
+              <input type="checkbox" id="selectAll" v-model="selectAllReports" @change="toggleSelectAllReports">
+              <label for="selectAll" class="text-sm font-medium cursor-pointer">Select All Students</label>
+            </div>
+          </div>
+
+          <div class="space-y-8">
+            <div v-for="s in printableStudents" :key="s.id" class="bg-white p-8 rounded-3xl shadow border-4 border-slate-900 page-break">
+              <div class="flex items-center justify-between border-b-2 border-slate-800 pb-4 mb-6">
+                <div class="w-20">
+                  <img v-if="schoolSettings.logo" :src="schoolSettings.logo" alt="Logo" class="w-20 h-20 object-contain">
+                </div>
+                <div class="text-center flex-1 px-4">
+                  <h1 class="text-2xl font-black text-slate-900 uppercase tracking-wide">{{ schoolSettings.name }}</h1>
+                  <p class="text-sm font-bold text-slate-700">{{ schoolSettings.address }}</p>
+                  <p class="text-xs italic text-indigo-900 font-semibold mt-1">"A place from where your child begins their life and education."</p>
+                  <h2 class="text-lg font-black uppercase mt-3 text-slate-900 underline decoration-indigo-600 decoration-2">{{ selectedReportTerm }} Progress Report Card</h2>
+                </div>
+                <div class="w-20"></div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4 text-sm mb-6 bg-slate-100 p-4 rounded-xl border-2 border-slate-800 font-semibold text-slate-900">
+                <p><strong>Student Name:</strong> {{ s.name }}</p>
+                <p><strong>Roll No:</strong> {{ s.roll }}</p>
+                <p><strong>Class:</strong> {{ getClassName(s.classId) }}</p>
+                <p><strong>Academic Year (BS):</strong> {{ schoolSettings.academicYearBs }}</p>
+              </div>
+
+              <table class="w-full text-left border-collapse border-2 border-slate-900 text-sm mb-6">
+                <thead class="bg-slate-200 text-slate-900 font-bold border-b-2 border-slate-900">
+                  <tr>
+                    <th class="border-2 border-slate-900 p-2.5">Subject</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Theory</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Practical</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Total Score</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Grade Point</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Final Grade</th>
+                    <th class="border-2 border-slate-900 p-2.5 text-center">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y-2 divide-slate-900">
+                  <tr v-for="sub in getSubjectsForClass(s.classId)" :key="sub.id" class="border-b-2 border-slate-900">
+                    <td class="border-2 border-slate-900 p-2 font-bold text-slate-900">{{ sub.name }}</td>
+                    <td class="border-2 border-slate-900 p-2 text-center font-semibold">{{ getMarkEntry(s.id, selectedReportTerm, sub.id).theory }}</td>
+                    <td class="border-2 border-slate-900 p-2 text-center font-semibold">
+                      {{ sub.hasPractical ? getMarkEntry(s.id, selectedReportTerm, sub.id).practical : '' }}
+                    </td>
+                    <td class="border-2 border-slate-900 p-2 text-center font-extrabold text-slate-900">{{ calculateTotal(getMarkEntry(s.id, selectedReportTerm, sub.id), sub) }}</td>
+                    <td class="border-2 border-slate-900 p-2 text-center font-semibold">{{ getGrade(getMarkEntry(s.id, selectedReportTerm, sub.id), sub).gpa.toFixed(2) }}</td>
+                    <td class="border-2 border-slate-900 p-2 text-center font-black" :class="getGrade(getMarkEntry(s.id, selectedReportTerm, sub.id), sub).grade === 'NG' ? 'text-rose-700' : 'text-slate-900'">
+                      {{ getGrade(getMarkEntry(s.id, selectedReportTerm, sub.id), sub).grade }}
+                    </td>
+                    <td class="border-2 border-slate-900 p-2 text-center text-xs font-medium">{{ getGrade(getMarkEntry(s.id, selectedReportTerm, sub.id), sub).remarks }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="flex justify-between items-center bg-slate-100 p-3.5 rounded-xl border-2 border-slate-900 mb-8 text-sm font-bold text-slate-900">
+                <p>Overall Grade Point Average (GPA): <span class="text-indigo-900 font-extrabold text-base border-b-2 border-indigo-900">{{ calculateStudentGPA(s.id, selectedReportTerm) }}</span></p>
+                <p>Overall Result: <span class="font-extrabold" :class="calculateStudentGPA(s.id, selectedReportTerm) !== 'NG' ? 'text-emerald-700' : 'text-rose-700'">{{ calculateStudentGPA(s.id, selectedReportTerm) !== 'NG' ? 'PASSED' : 'NEEDS IMPROVEMENT (NG)' }}</span></p>
+              </div>
+
+              <div class="grid grid-cols-3 gap-8 text-center pt-16 border-t-2 border-slate-800">
+                <div>
+                  <div class="border-t-2 border-slate-800 w-3/4 mx-auto mb-2"></div>
+                  <p class="text-xs font-bold text-slate-900">Class Teacher</p>
+                </div>
+                <div>
+                  <div class="border-t-2 border-slate-800 w-3/4 mx-auto mb-2"></div>
+                  <p class="text-xs font-bold text-slate-900">Exam Co-Ordinator</p>
+                </div>
+                <div>
+                  <div class="border-t-2 border-slate-800 w-3/4 mx-auto mb-2"></div>
+                  <p class="text-xs font-bold text-slate-900">Principal</p>
+                  <div class="mt-2 text-[11px] font-semibold text-slate-700 bg-slate-50 border rounded p-1 inline-block">
+                    <p>Issue Date (BS): {{ termPublishSettings[selectedReportTerm]?.nepaliDate || '2082/11/15' }}</p>
+                    <p>Issue Date (AD): {{ termPublishSettings[selectedReportTerm]?.englishDate || '2026-02-27' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- INVOICES MANAGEMENT -->
+        <section v-if="activeTab === 'invoices'" class="no-print space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Invoicing & Billing Management</h2>
+            <button @click="openInvoiceModal()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 font-medium">+ Create Multi-Item Invoice</button>
+          </div>
+
+          <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-slate-100 border-b">
+                <tr>
+                  <th class="p-4">Invoice #</th>
+                  <th class="p-4">Student</th>
+                  <th class="p-4">Billed Items Breakdown</th>
+                  <th class="p-4">Total Amount</th>
+                  <th class="p-4">Date</th>
+                  <th class="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="invoices.length === 0">
+                  <td colspan="6" class="p-8 text-center text-slate-400 font-medium">No invoices created yet. Click "+ Create Multi-Item Invoice" above.</td>
+                </tr>
+                <tr v-for="i in invoices" :key="i.id" class="border-b hover:bg-slate-50 transition">
+                  <td class="p-4 font-mono text-xs font-bold text-slate-500">#INV-{{ i.id }}</td>
+                  <td class="p-4 font-semibold text-indigo-900">{{ getStudentName(i.studentId) }}</td>
+                  <td class="p-4 text-sm">
+                    <div class="space-y-1">
+                      <div v-for="(item, idx) in i.items" :key="idx" class="flex justify-between w-64 text-xs bg-slate-100 px-2 py-1 rounded">
+                        <span class="text-slate-700 font-medium">{{ item.description || 'General Item' }}</span>
+                        <span class="font-semibold text-slate-900">Rs. {{ item.amount }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="p-4 font-bold text-indigo-700">Rs. {{ getInvoiceTotal(i) }}</td>
+                  <td class="p-4 text-sm text-slate-500">{{ i.date }}</td>
+                  <td class="p-4 text-right space-x-2">
+                    <button @click="removeInvoice(i.id)" class="text-rose-600 hover:underline text-sm font-medium">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- FINANCIAL LEDGER -->
+        <section v-if="activeTab === 'financialLedger'" class="no-print space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Student Financial Ledger</h2>
+            <button @click="openPaymentModal()" class="bg-emerald-600 text-white px-4 py-2 rounded shadow hover:bg-emerald-700">+ Record Payment</button>
+          </div>
+
+          <div class="bg-white p-4 rounded-xl shadow border border-slate-200 flex gap-4">
+            <select v-model="selectedLedgerStudentId" class="border p-2 rounded w-72">
+              <option value="">Select Student to View Ledger</option>
+              <option v-for="s in students" :value="s.id">{{ s.name }} ({{ getClassName(s.classId) }})</option>
+            </select>
+          </div>
+
+          <div v-if="selectedLedgerStudentId" class="space-y-4">
+            <div class="grid grid-cols-3 gap-4">
+              <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-lg">
+                <p class="text-xs text-indigo-700 font-semibold uppercase">Total Invoiced</p>
+                <p class="text-2xl font-bold text-indigo-900 mt-1">Rs. {{ getStudentFinancials(selectedLedgerStudentId).totalInvoiced }}</p>
+              </div>
+              <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg">
+                <p class="text-xs text-emerald-700 font-semibold uppercase">Total Paid</p>
+                <p class="text-2xl font-bold text-emerald-900 mt-1">Rs. {{ getStudentFinancials(selectedLedgerStudentId).totalPaid }}</p>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                <p class="text-xs text-amber-700 font-semibold uppercase">Remaining Balance Due</p>
+                <p class="text-2xl font-bold text-amber-900 mt-1">Rs. {{ getStudentFinancials(selectedLedgerStudentId).balance }}</p>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-100 border-b">
+                  <tr>
+                    <th class="p-4">Date</th>
+                    <th class="p-4">Transaction Type</th>
+                    <th class="p-4">Description / Reference</th>
+                    <th class="p-4 text-right">Debit (Invoiced)</th>
+                    <th class="p-4 text-right">Credit (Paid)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="tx in getStudentFinancials(selectedLedgerStudentId).transactions" :key="tx.id" class="border-b">
+                    <td class="p-4 text-sm">{{ tx.date }}</td>
+                    <td class="p-4">
+                      <span :class="tx.type === 'INVOICE' ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'" class="px-2 py-1 rounded text-xs font-bold">
+                        {{ tx.type }}
+                      </span>
+                    </td>
+                    <td class="p-4 text-sm">{{ tx.description }}</td>
+                    <td class="p-4 text-right font-medium text-indigo-900">{{ tx.type === 'INVOICE' ? 'Rs. ' + tx.amount : '-' }}</td>
+                    <td class="p-4 text-right font-medium text-emerald-700">{{ tx.type === 'PAYMENT' ? 'Rs. ' + tx.amount : '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ABOUT PAGE -->
+        <section v-if="activeTab === 'about'" class="no-print bg-white p-8 rounded-xl shadow border border-slate-200 space-y-4">
+          <div class="flex items-center gap-4">
+            <img v-if="schoolSettings.logo" :src="schoolSettings.logo" alt="School Logo" class="w-16 h-16 object-contain border rounded p-1">
+            <div>
+              <h2 class="text-3xl font-bold text-indigo-900">{{ schoolSettings.name }}</h2>
+              <p class="text-slate-600 font-medium">{{ schoolSettings.address }}</p>
+            </div>
+          </div>
+          <div class="p-6 bg-indigo-50 rounded-lg border border-indigo-100">
+            <p class="text-lg text-indigo-900 italic font-serif">"A place from where your child begins their life and education."</p>
+          </div>
+          <p class="text-slate-700 leading-relaxed">
+            {{ schoolSettings.name }} is dedicated to providing an inspiring and safe early learning environment. We cultivate natural curiosity, confidence, and foundational skills tailored to young minds.
+          </p>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- MODALS -->
+    <!-- MARKS CSV IMPORT MODAL -->
+    <div v-if="showMarksImportModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">Import Student Marks via CSV</h3>
+        <p class="text-xs text-slate-500">Upload CSV containing headers matching Nursery/PG or LKG/UKG layouts for <strong>{{ selectedTerm }}</strong>.</p>
+        <input type="file" ref="marksCsvFileInput" accept=".csv" class="w-full border p-2 rounded text-sm">
+        <div class="flex justify-end gap-2">
+          <button @click="showMarksImportModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="processMarksCsvImport" class="px-4 py-2 bg-emerald-600 text-white rounded">Import Marks</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CSV Student Import Modal -->
+    <div v-if="showImportModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">Import Students via CSV</h3>
+        <select v-model="importClassId" class="w-full border p-2 rounded">
+          <option value="">Select Target Class for Import</option>
+          <option v-for="c in classes" :value="c.id">{{ c.name }} - {{ c.section }}</option>
+        </select>
+        <input type="file" ref="csvFileInput" accept=".csv" class="w-full border p-2 rounded text-sm">
+        <div class="flex justify-end gap-2">
+          <button @click="showImportModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="processCsvImport" class="px-4 py-2 bg-emerald-600 text-white rounded">Import Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-Item Invoice Modal -->
+    <div v-if="showInvoiceModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-lg space-y-4">
+        <h3 class="text-lg font-bold">Create Multi-Item Student Invoice</h3>
+        <select v-model="invoiceForm.studentId" class="w-full border p-2 rounded">
+          <option value="">Select Student</option>
+          <option v-for="s in students" :value="s.id">{{ s.name }} ({{ getClassName(s.classId) }})</option>
+        </select>
+
+        <div class="space-y-3 border-t border-b py-3 max-h-60 overflow-y-auto">
+          <div class="flex justify-between items-center">
+            <label class="text-xs font-semibold uppercase text-slate-500">Invoice Line Items</label>
+            <button @click="addInvoiceLineItem" class="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded font-bold">+ Add Item</button>
+          </div>
+          
+          <div v-for="(item, idx) in invoiceForm.items" :key="idx" class="flex gap-2 items-center">
+            <input v-model="item.description" placeholder="Item description (e.g. Tuition Fee)" class="flex-1 border p-2 rounded text-sm">
+            <input v-model.number="item.amount" type="number" placeholder="Amount" class="w-28 border p-2 rounded text-sm">
+            <button @click="removeInvoiceLineItem(idx)" class="text-rose-600 hover:text-rose-800 text-lg font-bold px-2">✕</button>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center text-sm font-bold bg-slate-50 p-3 rounded">
+          <span>Grand Total:</span>
+          <span class="text-indigo-700 text-xl">Rs. {{ calculatedModalInvoiceTotal }}</span>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button @click="showInvoiceModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="saveInvoice" class="px-4 py-2 bg-indigo-600 text-white rounded font-medium">Generate Invoice</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Record Payment Modal -->
+    <div v-if="showPaymentModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">Record Student Payment</h3>
+        <select v-model="paymentForm.studentId" class="w-full border p-2 rounded">
+          <option value="">Select Student</option>
+          <option v-for="s in students" :value="s.id">{{ s.name }} ({{ getClassName(s.classId) }})</option>
+        </select>
+        <input v-model="paymentForm.description" placeholder="Description (e.g. Cash payment)" class="w-full border p-2 rounded">
+        <input v-model.number="paymentForm.amount" type="number" placeholder="Amount Received (NPR)" class="w-full border p-2 rounded">
+        <div class="flex justify-end gap-2">
+          <button @click="showPaymentModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="savePayment" class="px-4 py-2 bg-emerald-600 text-white rounded">Record Payment</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Class Modal -->
+    <div v-if="showClassModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">{{ classForm.id ? 'Edit' : 'Add' }} Class</h3>
+        <input v-model="classForm.name" placeholder="Class Name (e.g. Nursery)" class="w-full border p-2 rounded">
+        <input v-model="classForm.section" placeholder="Section (e.g. A)" class="w-full border p-2 rounded">
+        <div class="flex justify-end gap-2">
+          <button @click="showClassModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="saveClass" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subject Modal -->
+    <div v-if="showSubjectModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">{{ subjectForm.id ? 'Edit' : 'Add' }} Subject Setting</h3>
+        <input v-model="subjectForm.name" placeholder="Subject Name (e.g. Mathematics)" class="w-full border p-2 rounded">
+        
+        <div>
+          <label class="text-xs font-semibold block mb-1">Assign to Classes (Leave unselected for All Classes)</label>
+          <div class="max-h-28 overflow-y-auto border p-2 rounded space-y-1 bg-slate-50">
+            <div v-for="c in classes" :key="c.id" class="flex items-center gap-2 text-sm">
+              <input type="checkbox" :id="'cls-' + c.id" :value="c.id" v-model="subjectForm.classIds">
+              <label :for="'cls-' + c.id">{{ c.name }} - {{ c.section }}</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-xs font-semibold">Theory FM</label>
+            <input v-model.number="subjectForm.theoryFm" type="number" class="w-full border p-2 rounded">
+          </div>
+          <div>
+            <label class="text-xs font-semibold">Theory PM</label>
+            <input v-model.number="subjectForm.theoryPm" type="number" class="w-full border p-2 rounded">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="hasPrac" v-model="subjectForm.hasPractical">
+          <label for="hasPrac" class="text-sm font-medium">Has Practical Exam?</label>
+        </div>
+        <div v-if="subjectForm.hasPractical" class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-xs font-semibold">Practical FM</label>
+            <input v-model.number="subjectForm.practicalFm" type="number" class="w-full border p-2 rounded">
+          </div>
+          <div>
+            <label class="text-xs font-semibold">Practical PM</label>
+            <input v-model.number="subjectForm.practicalPm" type="number" class="w-full border p-2 rounded">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button @click="showSubjectModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="saveSubject" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teacher Modal -->
+    <div v-if="showTeacherModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">{{ teacherForm.id ? 'Edit' : 'Add' }} Teacher</h3>
+        <input v-model="teacherForm.name" placeholder="Full Name" class="w-full border p-2 rounded">
+        <input v-model="teacherForm.subject" placeholder="Subject / Role" class="w-full border p-2 rounded">
+        <input v-model="teacherForm.phone" placeholder="Phone Number" class="w-full border p-2 rounded">
+        <div class="flex justify-end gap-2">
+          <button @click="showTeacherModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="saveTeacher" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Student Modal -->
+    <div v-if="showStudentModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4">
+        <h3 class="text-lg font-bold">{{ studentForm.id ? 'Edit' : 'Add' }} Student</h3>
+        <input v-model="studentForm.roll" placeholder="Roll Number" class="w-full border p-2 rounded">
+        <input v-model="studentForm.name" placeholder="Full Name" class="w-full border p-2 rounded">
+        <select v-model="studentForm.classId" class="w-full border p-2 rounded">
+          <option value="">Select Class</option>
+          <option v-for="c in classes" :value="c.id">{{ c.name }} - {{ c.section }}</option>
+        </select>
+        <input v-model="studentForm.phone" placeholder="Guardian Phone" class="w-full border p-2 rounded">
+        <div class="flex justify-end gap-2">
+          <button @click="showStudentModal = false" class="px-4 py-2 border rounded">Cancel</button>
+          <button @click="saveStudent" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const { createApp, ref, computed, watch, onMounted } = Vue;
+
+  createApp({
+    setup() {
+      // Authentication System State
+      const isLoggedIn = ref(sessionStorage.getItem('rb_is_logged_in') === 'true');
+      const activeUser = ref(sessionStorage.getItem('rb_active_user') || '');
+      const storedCredentials = ref(JSON.parse(localStorage.getItem('rb_auth_creds') || JSON.stringify({
+        username: 'Ramailo Balsansar',
+        password: 'RBS2078'
+      })));
+
+      const loginUsername = ref('');
+      const loginPassword = ref('');
+      const authError = ref('');
+      const authSuccess = ref('');
+
+      const showChangePassword = ref(false);
+      const changePassForm = ref({
+        oldPassword: '',
+        newPassword: '',
+        retypePassword: ''
+      });
+
+      // Simple CAPTCHA System (Addition/Subtraction)
+      const captcha = ref({ num1: 0, num2: 0, operator: '+', answer: 0 });
+      const captchaInput = ref(null);
+
+      const generateCaptcha = () => {
+        const isAddition = Math.random() > 0.5;
+        const n1 = Math.floor(Math.random() * 20) + 10;
+        const n2 = Math.floor(Math.random() * 10) + 1;
+        captcha.value = {
+          num1: n1,
+          num2: n2,
+          operator: isAddition ? '+' : '-',
+          answer: isAddition ? (n1 + n2) : (n1 - n2)
+        };
+        captchaInput.value = null;
+      };
+
+      onMounted(() => {
+        generateCaptcha();
+      });
+
+      const handleLogin = () => {
+        authError.value = '';
+        if (!loginUsername.value || !loginPassword.value) {
+          authError.value = 'Please fill in both username and password.';
+          return;
+        }
+
+        if (captchaInput.value !== captcha.value.answer) {
+          authError.value = 'Incorrect security CAPTCHA answer.';
+          generateCaptcha();
+          return;
+        }
+
+        if (
+          loginUsername.value.trim() === storedCredentials.value.username &&
+          loginPassword.value === storedCredentials.value.password
+        ) {
+          isLoggedIn.value = true;
+          activeUser.value = storedCredentials.value.username;
+          sessionStorage.setItem('rb_is_logged_in', 'true');
+          sessionStorage.setItem('rb_active_user', activeUser.value);
+        } else {
+          authError.value = 'Invalid username or password.';
+          generateCaptcha();
+        }
+      };
+
+      const toggleChangePasswordView = () => {
+        showChangePassword.value = !showChangePassword.value;
+        authError.value = '';
+        authSuccess.value = '';
+        changePassForm.value = { oldPassword: '', newPassword: '', retypePassword: '' };
+        generateCaptcha();
+      };
+
+      const handleChangePassword = () => {
+        authError.value = '';
+        authSuccess.value = '';
+
+        if (!changePassForm.value.oldPassword || !changePassForm.value.newPassword || !changePassForm.value.retypePassword) {
+          authError.value = 'All password fields are required.';
+          return;
+        }
+
+        if (changePassForm.value.oldPassword !== storedCredentials.value.password) {
+          authError.value = 'Incorrect current password.';
+          generateCaptcha();
+          return;
+        }
+
+        if (changePassForm.value.newPassword !== changePassForm.value.retypePassword) {
+          authError.value = 'New password and retype password do not match.';
+          return;
+        }
+
+        if (captchaInput.value !== captcha.value.answer) {
+          authError.value = 'Incorrect security CAPTCHA answer.';
+          generateCaptcha();
+          return;
+        }
+
+        // Save new password
+        storedCredentials.value.password = changePassForm.value.newPassword;
+        localStorage.setItem('rb_auth_creds', JSON.stringify(storedCredentials.value));
+
+        authSuccess.value = 'Password changed successfully! Returning to login...';
+        setTimeout(() => {
+          toggleChangePasswordView();
+        }, 1500);
+      };
+
+      const handleLogout = () => {
+        isLoggedIn.value = false;
+        activeUser.value = '';
+        sessionStorage.removeItem('rb_is_logged_in');
+        sessionStorage.removeItem('rb_active_user');
+        loginUsername.value = '';
+        loginPassword.value = '';
+        generateCaptcha();
+      };
+
+      // App Core Functional Logic
+      const activeTab = ref('dashboard');
+
+      const defaultSubjects = [
+        { id: 1, name: 'Maths', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: true, practicalFm: 50, practicalPm: 20 },
+        { id: 2, name: 'English', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: true, practicalFm: 50, practicalPm: 20 },
+        { id: 3, name: 'Nepali', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: true, practicalFm: 50, practicalPm: 20 },
+        { id: 4, name: 'Nepali Oral', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 0, practicalPm: 0 },
+        { id: 5, name: 'English Oral', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 0, practicalPm: 0 },
+        { id: 6, name: 'Coloring & Painting', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 0, practicalPm: 0 },
+        { id: 7, name: 'Paper Craft', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 0, practicalPm: 0 },
+        { id: 8, name: 'Rhymes', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 0, practicalPm: 0 },
+        { id: 9, name: 'Social', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: true, practicalFm: 50, practicalPm: 20 },
+        { id: 10, name: 'Science', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: true, practicalFm: 50, practicalPm: 20 }
+      ];
+
+      const availableTerms = ['First Term', 'Second Term', 'Third Term', 'Final Term'];
+
+      const schoolSettings = ref(JSON.parse(localStorage.getItem('rb_school_settings') || JSON.stringify({
+        name: 'Ramailo Balsansar Montessori',
+        address: 'Ratnanagar-11, Jirauna',
+        academicYearBs: '2082/2083',
+        logo: ''
+      })));
+
+      const defaultTermPublish = {
+        'First Term': { isPublished: true, nepaliDate: '2082/05/15', englishDate: '2025-08-31' },
+        'Second Term': { isPublished: true, nepaliDate: '2082/08/20', englishDate: '2025-12-06' },
+        'Third Term': { isPublished: true, nepaliDate: '2082/11/15', englishDate: '2026-02-27' },
+        'Final Term': { isPublished: false, nepaliDate: '2083/01/25', englishDate: '2026-05-08' }
+      };
+      const termPublishSettings = ref(JSON.parse(localStorage.getItem('rb_term_publish') || JSON.stringify(defaultTermPublish)));
+
+      const classes = ref(JSON.parse(localStorage.getItem('rb_classes') || '[]'));
+      const teachers = ref(JSON.parse(localStorage.getItem('rb_teachers') || '[]'));
+      const students = ref(JSON.parse(localStorage.getItem('rb_students') || '[]'));
+      const subjects = ref(JSON.parse(localStorage.getItem('rb_subjects') || JSON.stringify(defaultSubjects)));
+      const marks = ref(JSON.parse(localStorage.getItem('rb_marks') || '{}'));
+      const invoices = ref(JSON.parse(localStorage.getItem('rb_invoices') || '[]'));
+      const payments = ref(JSON.parse(localStorage.getItem('rb_payments') || '[]'));
+
+      watch(schoolSettings, v => localStorage.setItem('rb_school_settings', JSON.stringify(v)), { deep: true });
+      watch(termPublishSettings, v => localStorage.setItem('rb_term_publish', JSON.stringify(v)), { deep: true });
+      watch(classes, v => localStorage.setItem('rb_classes', JSON.stringify(v)), { deep: true });
+      watch(teachers, v => localStorage.setItem('rb_teachers', JSON.stringify(v)), { deep: true });
+      watch(students, v => localStorage.setItem('rb_students', JSON.stringify(v)), { deep: true });
+      watch(subjects, v => localStorage.setItem('rb_subjects', JSON.stringify(v)), { deep: true });
+      watch(marks, v => localStorage.setItem('rb_marks', JSON.stringify(v)), { deep: true });
+      watch(invoices, v => localStorage.setItem('rb_invoices', JSON.stringify(v)), { deep: true });
+      watch(payments, v => localStorage.setItem('rb_payments', JSON.stringify(v)), { deep: true });
+
+      const handleLogoUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            schoolSettings.value.logo = evt.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const selectedClassForStudentView = ref('');
+      const filteredStudentsByClass = computed(() => {
+        if (!selectedClassForStudentView.value) return students.value;
+        return students.value.filter(s => s.classId === selectedClassForStudentView.value);
+      });
+
+      const showImportModal = ref(false);
+      const importClassId = ref('');
+      const csvFileInput = ref(null);
+
+      const downloadCsvTemplate = () => {
+        const csvContent = "data:text/csv;charset=utf-8,Roll,Name,GuardianPhone\n1,Saiman Gurung,9800000001\n2,Binsu Subedi,9800000002";
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "student_import_template.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
+      const processCsvImport = () => {
+        if (!importClassId.value) return alert('Please select a class first');
+        const file = csvFileInput.value?.files[0];
+        if (!file) return alert('Please choose a CSV file');
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const lines = e.target.result.split('\n');
+          let addedCount = 0;
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const [roll, name, phone] = line.split(',');
+            if (roll && name) {
+              students.value.push({
+                id: Date.now() + Math.random(),
+                roll: roll.trim(),
+                name: name.trim(),
+                classId: importClassId.value,
+                phone: phone ? phone.trim() : ''
+              });
+              addedCount++;
+            }
+          }
+          alert(`Successfully imported ${addedCount} students!`);
+          showImportModal.value = false;
+        };
+        reader.readAsText(file);
+      };
+
+      const showMarksImportModal = ref(false);
+      const marksCsvFileInput = ref(null);
+
+      const downloadMarksCsvTemplate = (level) => {
+        let headers = [];
+        let sampleRow = [];
+
+        if (level === 'pg') {
+          headers = ["Syb. No", "Name", "Maths_TH", "Maths_PR", "English_TH", "English_PR", "Nepali_TH", "Nepali_PR", "Nepali Oral_TH", "English Oral_TH", "Coloring & Painting_TH", "Paper Craft_TH", "Rhymes_TH"];
+          sampleRow = ["1", "Saiman Gurung", "49", "50", "48", "50", "50", "50", "48", "50", "49", "47", "50"];
+        } else {
+          headers = ["Syb. No", "Name", "Maths_TH", "Maths_PR", "English_TH", "English_PR", "Nepali_TH", "Nepali_PR", "Social_TH", "Social_PR", "Science_TH", "Science_PR", "Nepali Oral_TH", "English Oral_TH", "Coloring & Painting_TH", "Paper Craft_TH", "Rhymes_TH"];
+          sampleRow = ["1", "Sami Shrestha", "49", "49", "50", "49", "49", "49", "45", "49", "50", "49", "48", "49", "49", "50", "48"];
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + sampleRow.join(",");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Marks_Entry_Template_${level.toUpperCase()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
+      const processMarksCsvImport = () => {
+        const file = marksCsvFileInput.value?.files[0];
+        if (!file) return alert('Please select a CSV file to import.');
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          if (lines.length < 2) return alert('Invalid CSV file structure.');
+
+          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+          let importedCount = 0;
+          for (let i = 1; i < lines.length; i++) {
+            const row = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+            if (row.length < 2) continue;
+
+            const name = row[1];
+            const student = students.value.find(s => s.name.toLowerCase() === name.toLowerCase());
+            if (!student) continue;
+
+            if (!marks.value[student.id]) marks.value[student.id] = {};
+            if (!marks.value[student.id][selectedTerm.value]) marks.value[student.id][selectedTerm.value] = {};
+
+            for (let c = 2; c < headers.length; c++) {
+              const header = headers[c];
+              const parts = header.split('_');
+              const subName = parts[0];
+              const type = parts[1] || 'TH';
+
+              const subject = subjects.value.find(sub => sub.name.toLowerCase() === subName.toLowerCase());
+              if (subject) {
+                if (!marks.value[student.id][selectedTerm.value][subject.id]) {
+                  marks.value[student.id][selectedTerm.value][subject.id] = { theory: 0, practical: 0 };
+                }
+                const val = parseFloat(row[c]) || 0;
+                if (type === 'TH') {
+                  marks.value[student.id][selectedTerm.value][subject.id].theory = val;
+                } else if (type === 'PR') {
+                  marks.value[student.id][selectedTerm.value][subject.id].practical = val;
+                }
+              }
+            }
+            importedCount++;
+          }
+
+          alert(`Successfully imported marks for ${importedCount} student records for ${selectedTerm.value}!`);
+          showMarksImportModal.value = false;
+        };
+        reader.readAsText(file);
+      };
+
+      const showInvoiceModal = ref(false);
+      const invoiceForm = ref({
+        studentId: '',
+        items: [{ description: 'Monthly Tuition Fee', amount: 1500 }]
+      });
+
+      const openInvoiceModal = () => {
+        invoiceForm.value = {
+          studentId: '',
+          items: [{ description: 'Monthly Tuition Fee', amount: 1500 }]
+        };
+        showInvoiceModal.value = true;
+      };
+
+      const addInvoiceLineItem = () => {
+        invoiceForm.value.items.push({ description: '', amount: 0 });
+      };
+
+      const removeInvoiceLineItem = (idx) => {
+        if (invoiceForm.value.items.length > 1) {
+          invoiceForm.value.items.splice(idx, 1);
+        }
+      };
+
+      const calculatedModalInvoiceTotal = computed(() => {
+        return invoiceForm.value.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      });
+
+      const getInvoiceTotal = (inv) => {
+        if (!inv || !inv.items) return 0;
+        return inv.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      };
+
+      const saveInvoice = () => {
+        if (!invoiceForm.value.studentId) return alert('Please select a student');
+        if (calculatedModalInvoiceTotal.value <= 0) return alert('Invoice total must be greater than 0');
+
+        invoices.value.push({
+          id: Math.floor(100000 + Math.random() * 900000),
+          studentId: invoiceForm.value.studentId,
+          items: JSON.parse(JSON.stringify(invoiceForm.value.items)),
+          date: new Date().toISOString().split('T')[0]
+        });
+        showInvoiceModal.value = false;
+      };
+
+      const removeInvoice = (id) => {
+        invoices.value = invoices.value.filter(i => i.id !== id);
+      };
+
+      const selectedLedgerStudentId = ref('');
+      const showPaymentModal = ref(false);
+      const paymentForm = ref({ studentId: '', description: '', amount: 0 });
+
+      const openPaymentModal = () => {
+        paymentForm.value = { studentId: selectedLedgerStudentId.value || '', description: 'Fee Payment Received', amount: 0 };
+        showPaymentModal.value = true;
+      };
+
+      const savePayment = () => {
+        if (!paymentForm.value.studentId || !paymentForm.value.amount) return alert('Please complete all payment fields');
+        payments.value.push({
+          id: Date.now(),
+          ...paymentForm.value,
+          date: new Date().toISOString().split('T')[0]
+        });
+        showPaymentModal.value = false;
+      };
+
+      const getStudentFinancials = (studentId) => {
+        const studentInvoices = invoices.value.filter(i => i.studentId === studentId);
+        const studentPayments = payments.value.filter(p => p.studentId === studentId);
+
+        let totalInvoiced = 0;
+        const transactions = [];
+
+        studentInvoices.forEach(inv => {
+          const total = getInvoiceTotal(inv);
+          totalInvoiced += total;
+          transactions.push({ id: inv.id, date: inv.date, type: 'INVOICE', description: `Invoice #${inv.id} (${inv.items.length} item/s)`, amount: total });
+        });
+
+        let totalPaid = 0;
+        studentPayments.forEach(p => {
+          totalPaid += Number(p.amount);
+          transactions.push({ id: p.id, date: p.date, type: 'PAYMENT', description: p.description, amount: p.amount });
+        });
+
+        transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        return {
+          totalInvoiced,
+          totalPaid,
+          balance: totalInvoiced - totalPaid,
+          transactions
+        };
+      };
+
+      const totalBilledAmount = computed(() => invoices.value.reduce((sum, inv) => sum + getInvoiceTotal(inv), 0));
+      const totalCollectedAmount = computed(() => payments.value.reduce((sum, p) => sum + Number(p.amount || 0), 0));
+
+      const getSubjectsForClass = (classId) => {
+        if (!classId) return subjects.value;
+        return subjects.value.filter(sub => !sub.classIds || sub.classIds.length === 0 || sub.classIds.includes(classId));
+      };
+
+      const selectedTerm = ref('Third Term');
+      const selectedReportTerm = ref('Third Term');
+      const selectedClassForMarks = ref('');
+      const selectedSubjectId = ref('');
+      const marksViewMode = ref('single');
+      const selectedClassForReport = ref('');
+      const selectedStudentIds = ref([]);
+      const selectAllReports = ref(false);
+
+      const showSubjectModal = ref(false);
+      const subjectForm = ref({ id: null, name: '', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 50, practicalPm: 20 });
+      const showClassModal = ref(false);
+      const classForm = ref({ id: null, name: '', section: '' });
+      const showTeacherModal = ref(false);
+      const teacherForm = ref({ id: null, name: '', subject: '', phone: '' });
+      const showStudentModal = ref(false);
+      const studentForm = ref({ id: null, roll: '', name: '', classId: '', phone: '' });
+
+      const navClass = (tab) => activeTab.value === tab ? 'bg-indigo-800 font-bold' : 'hover:bg-indigo-800/50 text-indigo-100';
+      const getClassName = (id) => { const c = classes.value.find(item => item.id === id); return c ? `${c.name} - ${c.section}` : 'N/A'; };
+      const getStudentName = (id) => students.value.find(s => s.id === id)?.name || 'N/A';
+
+      const openSubjectModal = (sub = null) => {
+        subjectForm.value = sub ? { ...sub, classIds: sub.classIds || [] } : { id: Date.now(), name: '', classIds: [], theoryFm: 50, theoryPm: 20, hasPractical: false, practicalFm: 50, practicalPm: 20 };
+        showSubjectModal.value = true;
+      };
+      const saveSubject = () => {
+        const idx = subjects.value.findIndex(s => s.id === subjectForm.value.id);
+        if (idx > -1) subjects.value[idx] = { ...subjectForm.value };
+        else subjects.value.push({ ...subjectForm.value });
+        showSubjectModal.value = false;
+      };
+      const removeSubject = (id) => { subjects.value = subjects.value.filter(s => s.id !== id); };
+      const activeSubject = computed(() => subjects.value.find(s => s.id === selectedSubjectId.value));
+
+      const classSubjectsForMarks = computed(() => getSubjectsForClass(selectedClassForMarks.value));
+
+      const openClassModal = (c = null) => { classForm.value = c ? { ...c } : { id: Date.now(), name: '', section: '' }; showClassModal.value = true; };
+      const saveClass = () => { const idx = classes.value.findIndex(c => c.id === classForm.value.id); if (idx > -1) classes.value[idx] = { ...classForm.value }; else classes.value.push({ ...classForm.value }); showClassModal.value = false; };
+      const removeClass = (id) => { classes.value = classes.value.filter(c => c.id !== id); };
+
+      const openTeacherModal = (t = null) => { teacherForm.value = t ? { ...t } : { id: Date.now(), name: '', subject: '', phone: '' }; showTeacherModal.value = true; };
+      const saveTeacher = () => { const idx = teachers.value.findIndex(t => t.id === teacherForm.value.id); if (idx > -1) teachers.value[idx] = { ...teacherForm.value }; else teachers.value.push({ ...teacherForm.value }); showTeacherModal.value = false; };
+      const removeTeacher = (id) => { teachers.value = teachers.value.filter(t => t.id !== id); };
+
+      const openStudentModal = (s = null) => { studentForm.value = s ? { ...s } : { id: Date.now(), roll: '', name: '', classId: '', phone: '' }; showStudentModal.value = true; };
+      const saveStudent = () => { const idx = students.value.findIndex(s => s.id === studentForm.value.id); if (idx > -1) students.value[idx] = { ...studentForm.value }; else students.value.push({ ...studentForm.value }); showStudentModal.value = false; };
+      const removeStudent = (id) => { students.value = students.value.filter(s => s.id !== id); };
+
+      const filteredStudentsForMarks = computed(() => students.value.filter(s => s.classId === selectedClassForMarks.value));
+      
+      const getMarkEntry = (studentId, term, subjectId) => {
+        if (!marks.value[studentId]) marks.value[studentId] = {};
+        if (!marks.value[studentId][term]) marks.value[studentId][term] = {};
+        if (!marks.value[studentId][term][subjectId]) marks.value[studentId][term][subjectId] = { theory: 0, practical: 0 };
+        return marks.value[studentId][term][subjectId];
+      };
+      const calculateTotal = (entry, sub) => (entry?.theory || 0) + (sub?.hasPractical ? (entry?.practical || 0) : 0);
+      const getStatus = (entry, sub) => (entry?.theory >= sub?.theoryPm && (!sub?.hasPractical || entry?.practical >= sub?.practicalPm)) ? 'PASS' : 'FAIL';
+
+      const getGrade = (entry, sub) => {
+        if (!entry || !sub) return { grade: 'NG', gpa: 0.0, remarks: 'Non-Graded' };
+        if (entry.theory < sub.theoryPm || (sub.hasPractical && entry.practical < sub.practicalPm)) return { grade: 'NG', gpa: 0.0, remarks: 'Non-Graded' };
+        const percentage = (calculateTotal(entry, sub) / (sub.theoryFm + (sub.hasPractical ? sub.practicalFm : 0))) * 100;
+        if (percentage >= 90) return { grade: 'A+', gpa: 4.0, remarks: 'Outstanding' };
+        if (percentage >= 80) return { grade: 'A', gpa: 3.6, remarks: 'Excellent' };
+        if (percentage >= 70) return { grade: 'B+', gpa: 3.2, remarks: 'Very Good' };
+        if (percentage >= 60) return { grade: 'B', gpa: 2.8, remarks: 'Good' };
+        if (percentage >= 50) return { grade: 'C+', gpa: 2.4, remarks: 'Satisfactory' };
+        if (percentage >= 40) return { grade: 'C', gpa: 2.0, remarks: 'Acceptable' };
+        if (percentage >= 35) return { grade: 'D', gpa: 1.6, remarks: 'Basic' };
+        return { grade: 'NG', gpa: 0.0, remarks: 'Non-Graded' };
+      };
+
+      const calculateStudentGPA = (studentId, term) => {
+        const student = students.value.find(s => s.id === studentId);
+        const classSubs = getSubjectsForClass(student?.classId);
+        if (classSubs.length === 0) return '0.00';
+        
+        let totalGpaPoints = 0, hasNG = false;
+        classSubs.forEach(sub => {
+          const res = getGrade(getMarkEntry(studentId, term, sub.id), sub);
+          if (res.grade === 'NG') hasNG = true;
+          totalGpaPoints += res.gpa;
+        });
+        return hasNG ? 'NG' : (totalGpaPoints / classSubs.length).toFixed(2);
+      };
+
+      const calculateStudentGrandTotal = (studentId, term) => {
+        const student = students.value.find(s => s.id === studentId);
+        const classSubs = getSubjectsForClass(student?.classId);
+        return classSubs.reduce((tot, sub) => tot + calculateTotal(getMarkEntry(studentId, term, sub.id), sub), 0);
+      };
+
+      const exportMarksToExcel = () => {
+        if (!activeSubject.value) return;
+        const rows = filteredStudentsForMarks.value.map(s => {
+          const entry = getMarkEntry(s.id, selectedTerm.value, activeSubject.value.id);
+          return { "Roll": s.roll, "Student Name": s.name, "Term": selectedTerm.value, "Subject": activeSubject.value.name, "Theory": entry.theory, "Practical": activeSubject.value.hasPractical ? entry.practical : '', "Total": calculateTotal(entry, activeSubject.value), "Grade": getGrade(entry, activeSubject.value).grade, "Status": getStatus(entry, activeSubject.value) };
+        });
+        const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Marks Ledger"); XLSX.writeFile(wb, `Marks_Ledger_${selectedTerm.value}_${activeSubject.value.name}.xlsx`);
+      };
+
+      const exportClassLedgerExcel = () => {
+        if (!selectedClassForMarks.value) return;
+        const subs = classSubjectsForMarks.value;
+        const rows = filteredStudentsForMarks.value.map(s => {
+          const row = { "Roll": s.roll, "Student Name": s.name, "Term": selectedTerm.value };
+          subs.forEach(sub => {
+            const entry = getMarkEntry(s.id, selectedTerm.value, sub.id);
+            row[`${sub.name} (TH)`] = entry.theory;
+            if (sub.hasPractical) row[`${sub.name} (PR)`] = entry.practical;
+            row[`${sub.name} (Total)`] = calculateTotal(entry, sub);
+          });
+          row["Grand Total"] = calculateStudentGrandTotal(s.id, selectedTerm.value);
+          row["Overall GPA"] = calculateStudentGPA(s.id, selectedTerm.value);
+          return row;
+        });
+        const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Class Ledger"); XLSX.writeFile(wb, `Class_Ledger_${selectedTerm.value}_${getClassName(selectedClassForMarks.value)}.xlsx`);
+      };
+
+      const printableStudents = computed(() => {
+        let list = students.value;
+        if (selectedClassForReport.value) list = list.filter(s => s.classId === selectedClassForReport.value);
+        if (selectedStudentIds.value.length > 0) list = list.filter(s => selectedStudentIds.value.includes(s.id));
+        return list;
+      });
+
+      const toggleSelectAllReports = () => { selectedStudentIds.value = selectAllReports.value ? printableStudents.value.map(s => s.id) : []; };
+      const printReports = () => window.print();
+
+      const exportReportsExcel = () => {
+        const rows = [];
+        printableStudents.value.forEach(s => {
+          getSubjectsForClass(s.classId).forEach(sub => {
+            const entry = getMarkEntry(s.id, selectedReportTerm.value, sub.id);
+            rows.push({ "Student": s.name, "Roll": s.roll, "Term": selectedReportTerm.value, "Class": getClassName(s.classId), "Subject": sub.name, "Theory": entry.theory, "Practical": sub.hasPractical ? entry.practical : '', "Total": calculateTotal(entry, sub), "Grade Point": getGrade(entry, sub).gpa, "Grade": getGrade(entry, sub).grade, "Overall Student GPA": calculateStudentGPA(s.id, selectedReportTerm.value) });
+          });
+        });
+        const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Progress Reports"); XLSX.writeFile(wb, `Progress_Reports_${selectedReportTerm.value}.xlsx`);
+      };
+
+      return {
+        isLoggedIn, activeUser, loginUsername, loginPassword, authError, authSuccess,
+        showChangePassword, changePassForm, captcha, captchaInput, generateCaptcha,
+        handleLogin, toggleChangePasswordView, handleChangePassword, handleLogout,
+        activeTab, classes, teachers, students, subjects, marks, invoices, payments,
+        availableTerms, schoolSettings, termPublishSettings, handleLogoUpload,
+        selectedClassForStudentView, filteredStudentsByClass,
+        showImportModal, importClassId, csvFileInput, downloadCsvTemplate, processCsvImport,
+        showMarksImportModal, marksCsvFileInput, downloadMarksCsvTemplate, processMarksCsvImport,
+        showInvoiceModal, invoiceForm, addInvoiceLineItem, removeInvoiceLineItem, calculatedModalInvoiceTotal, openInvoiceModal, saveInvoice, removeInvoice, getInvoiceTotal,
+        selectedLedgerStudentId, showPaymentModal, paymentForm, openPaymentModal, savePayment, getStudentFinancials, totalBilledAmount, totalCollectedAmount,
+        selectedTerm, selectedReportTerm, selectedClassForMarks, selectedSubjectId, activeSubject, marksViewMode, classSubjectsForMarks, selectedClassForReport, selectedStudentIds, selectAllReports,
+        showSubjectModal, subjectForm, showClassModal, classForm, showTeacherModal, teacherForm, showStudentModal, studentForm,
+        navClass, getClassName, getStudentName, openSubjectModal, saveSubject, removeSubject, openClassModal, saveClass, removeClass, openTeacherModal, saveTeacher, removeTeacher, openStudentModal, saveStudent, removeStudent,
+        filteredStudentsForMarks, getMarkEntry, calculateTotal, getStatus, getGrade, calculateStudentGPA, calculateStudentGrandTotal, exportMarksToExcel, exportClassLedgerExcel, getSubjectsForClass,
+        printableStudents, toggleSelectAllReports, printReports, exportReportsExcel
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
